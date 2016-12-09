@@ -76,21 +76,23 @@ lda.default <-
            CV = FALSE, nu = 5, ...)
 {
     if(is.null(dim(x))) stop("'x' is not a matrix")
-    x <- as.matrix(x)
+    x <- fm.as.matrix(x)
     if(any(!is.finite(x)))
         stop("infinite, NA or NaN values in 'x'")
     n <- nrow(x)
     p <- ncol(x)
     if(n != length(grouping))
         stop("nrow(x) and length(grouping) are different")
-    g <- as.factor(grouping)
+    g <- fm.as.factor(grouping)
     lev <- lev1 <- levels(g)
-    counts <- as.vector(table(g))
+    counts <- as.vector(fm.table(g))
+	# TODO we need to test this case.
     if(!missing(prior)) {
         if(any(prior < 0) || round(sum(prior), 5) != 1) stop("invalid 'prior'")
         if(length(prior) != nlevels(g)) stop("'prior' is of incorrect length")
         prior <- prior[counts > 0L]
     }
+	# TODO we need to test this case
     if(any(counts == 0L)) {
         empty <- lev[counts == 0L]
         warning(sprintf(ngettext(length(empty),
@@ -109,7 +111,11 @@ lda.default <-
         stop(gettext("cannot use leave-one-out CV with method %s",
                      sQuote(method)), domain = NA)
     ## drop attributes to avoid e.g. matrix() methods
-    group.means <- tapply(c(x), list(rep(g, p), col(x)), mean)
+	# TODO I need to verify this.
+	group.means <- fm.groupby(x, 2, g, "+") / counts
+#    group.means <- tapply(c(x), list(rep(g, p), col(x)), mean)
+	# TODO diag should only compute the values in the diagonal.
+	# It should return a FlashR object.
     f1 <- sqrt(diag(var(x - group.means[g,  ])))
     if(any(f1 < tol)) {
         const <- format((1L:p)[f1 < tol])
@@ -152,6 +158,7 @@ lda.default <-
         scaling <- scaling %*% X.s$v[, 1L:rank] %*% diag(1/X.s$d[1L:rank],,rank)
     } else {
         fac <- if(method == "moment") 1/(n-ng) else 1/n
+		# TODO I need optimize the multiplication with scaling.
         X <- sqrt(fac) * (x - group.means[g,  ]) %*% scaling
         X.s <- svd(X, nu = 0L)
         rank <- sum(X.s$d > tol)
@@ -239,7 +246,7 @@ predict.lda <- function(object, newdata, prior = object$prior, dimen,
         }
         if(is.null(dim(newdata)))
             dim(newdata) <- c(1L, length(newdata))  # a row vector
-        x <- as.matrix(newdata)		# to cope with dataframes
+        x <- fm.as.matrix(newdata)		# to cope with dataframes
     }
 
     if(ncol(x) != ncol(object$means)) stop("wrong number of variables")
@@ -261,9 +268,9 @@ predict.lda <- function(object, newdata, prior = object$prior, dimen,
     N <- object$N
     if(method == "plug-in") {
         dm <- dm[, 1L:dimen, drop = FALSE]
-        dist <- matrix(0.5 * rowSums(dm^2) - log(prior), nrow(x),
+        dist <- fm.matrix(0.5 * rowSums(dm^2) - log(prior), nrow(x),
                        length(prior), byrow = TRUE) - x[, 1L:dimen, drop=FALSE] %*% t(dm)
-        dist <- exp( -(dist - apply(dist, 1L, min, na.rm=TRUE)))
+        dist <- exp( -(dist - fm.agg.mat(dist, 1L, "min")))
     } else if (method == "debiased") {
         dm <- dm[, 1L:dimen, drop=FALSE]
         dist <- matrix(0.5 * rowSums(dm^2), nrow(x), ng, byrow = TRUE) -
@@ -272,7 +279,8 @@ predict.lda <- function(object, newdata, prior = object$prior, dimen,
             matrix(log(prior) - dimen/object$counts , nrow(x), ng, byrow=TRUE)
         dist <- exp( -(dist - apply(dist, 1L, min, na.rm=TRUE)))
     } else {                            # predictive
-        dist <- matrix(0, nrow = nrow(x), ncol = ng)
+		dist.list <- list()
+#        dist <- matrix(0, nrow = nrow(x), ncol = ng)
         p <- ncol(object$means)
         # adjust to ML estimates of covariances
         X <- x * sqrt(N/(N-ng))
@@ -280,14 +288,17 @@ predict.lda <- function(object, newdata, prior = object$prior, dimen,
             nk <- object$counts[i]
             dev <- scale(X, center = dm[i, ], scale = FALSE)
             dev <- 1 + rowSums(dev^2) * nk/(N*(nk+1))
-            dist[, i] <- prior[i] * (nk/(nk+1))^(p/2) * dev^(-(N - ng + 1)/2)
+			dist.list <- c(dist.list, prior[i] * (nk/(nk+1))^(p/2) * dev^(-(N - ng + 1)/2))
+#            dist[, i] <- prior[i] * (nk/(nk+1))^(p/2) * dev^(-(N - ng + 1)/2)
         }
+		dist <- fm.cbind.list(dist.list)
     }
     posterior <- dist / drop(dist %*% rep(1, ng))
     nm <- names(object$prior)
-    cl <- factor(nm[max.col(posterior)], levels = object$lev)
+#    cl <- factor(nm[max.col(posterior)], levels = object$lev)
     dimnames(posterior) <- list(rownames(x), nm)
-    list(class = cl, posterior = posterior, x = x[, 1L:dimen, drop = FALSE])
+#    list(class = cl, posterior = posterior, x = x[, 1L:dimen, drop = FALSE])
+    list(posterior = posterior, x = x[, 1L:dimen, drop = FALSE])
 }
 
 print.lda <- function(x, ...)

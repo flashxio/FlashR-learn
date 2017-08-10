@@ -14,43 +14,8 @@
 #  A copy of the GNU General Public License is available at
 #  http://www.r-project.org/Licenses/
 #
-lda <- function(x, ...) UseMethod("lda")
 
-
-lda.formula <- function(formula, data, ..., subset, na.action)
-{
-    m <- match.call(expand.dots = FALSE)
-    m$... <- NULL
-    m[[1L]] <- quote(stats::model.frame)
-    m <- eval.parent(m)
-    Terms <- attr(m, "terms")
-    grouping <- model.response(m)
-    x <- model.matrix(Terms, m)
-    xint <- match("(Intercept)", colnames(x), nomatch = 0L)
-    if(xint > 0L) x <- x[, -xint, drop = FALSE]
-    res <- lda.default(x, grouping, ...)
-    res$terms <- Terms
-    ## fix up call to refer to the generic, but leave arg name as `formula'
-    cl <- match.call()
-    cl[[1L]] <- as.name("lda")
-    res$call <- cl
-    res$contrasts <- attr(x, "contrasts")
-    res$xlevels <- .getXlevels(Terms, m)
-    res$na.action <- attr(m, "na.action")
-    res
-}
-
-lda.data.frame <- function(x, ...)
-{
-    res <- lda(structure(data.matrix(x), class = "matrix"), ...)
-    cl <- match.call()
-    cl[[1L]] <- as.name("lda")
-    res$call <- cl
-    res
-}
-
-
-lda.matrix <- function(x, grouping, ..., subset, na.action)
+lda.fm <- function(x, grouping, ..., subset, na.action)
 {
     if(!missing(subset)) {
         x <- x[subset, , drop = FALSE]
@@ -63,14 +28,14 @@ lda.matrix <- function(x, grouping, ..., subset, na.action)
         x <- dfr$x
     }
 #    res <- NextMethod("lda")
-    res <- lda.default(x, grouping, ...)
+    res <- lda.default1(x, grouping, ...)
     cl <- match.call()
     cl[[1L]] <- as.name("lda")
     res$call <- cl
     res
 }
 
-lda.default <-
+lda.default1 <-
   function(x, grouping, prior = proportions, tol = 1.0e-4,
            method = c("moment", "mle", "mve", "t"),
            CV = FALSE, nu = 5, ...)

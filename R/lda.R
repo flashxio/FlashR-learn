@@ -179,13 +179,13 @@ lda.default1 <-
     structure(list(prior = prior, counts = counts, means = group.means,
                    scaling = scaling, lev = lev, svd = X.s$d[1L:rank],
                    N = n, call = cl),
-              class = "lda")
+              class = "lda1")
 }
 
-predict.lda <- function(object, newdata, prior = object$prior, dimen,
+predict.lda1 <- function(object, newdata, prior = object$prior, dimen,
 			method = c("plug-in", "predictive", "debiased"), ...)
 {
-    if(!inherits(object, "lda")) stop("object not of class \"lda\"")
+    if(!inherits(object, "lda1")) stop("object not of class \"lda\"")
     if(!is.null(Terms <- object$terms)) { # formula fit
         Terms <- delete.response(Terms)
         if(missing(newdata)) newdata <- model.frame(object)

@@ -40,8 +40,8 @@ esti.cov.diag <- function(X, resp, nk, means, reg.covar)
 	avg.X2 <- t(resp) %*% (X * X) / nk
 	avg.means2 <- means^2
 	avg.Xmeans <- means * (t(resp) %*% X) / nk
-	ret <- sweep(as.matrix(avg.X2 - 2*avg.Xmeans + avg.means2), 2, reg.covar, "+")
-	ret
+	covars <- as.matrix(avg.X2 - 2*avg.Xmeans + avg.means2)
+	ifelse(covars < reg.covar, reg.covar, covars)
 }
 
 esti.cov.spherical <- function(X, resp, nk, means, reg.covar)
@@ -52,7 +52,6 @@ esti.cov.spherical <- function(X, resp, nk, means, reg.covar)
 # This estimate the parameters of Mixture of Gaussian
 esti.gaussian.params <- function(X, resp, reg.covar, cov.type)
 {
-	print(any(is.nan(resp)))
 	n <- nrow(X)
 	nk <- colSums(resp)
 	# a k x d matrix. Each row is the mean of a component.
@@ -70,20 +69,35 @@ init.params <- function(X, k, reg.covar, method, cov.type)
 {
 	N <- nrow(X)
 	if (method == "kmeans") {
-		res <- kmeans(X, k)
-		resp <- fm.as.sparse.matrix(fm.as.factor(res$cluster))
+		res <- fm.kmeans(X, k, 100)
+		resp <- fm.matrix(0, nrow(X), k)
+		idx <- cbind(fm.seq.int(1, nrow(X), 1), res$cluster)
+		resp[idx] <- 1
+		# Estimate weights, means and covariances
+		params <- esti.gaussian.params(X, resp, reg.covar, cov.type)
+		list(weights=params$weights, means=params$means, covs=params$covs)
 	}
 	else if (method == "random") {
 		resp <- fm.runif.matrix(N, k, in.mem=fm.in.mem(X))
 		# each row needs to sum up to 1.
 		resp <- resp / rowSums(resp)
+		# Estimate weights, means and covariances
+		params <- esti.gaussian.params(X, resp, reg.covar, cov.type)
+		list(weights=params$weights, means=params$means, covs=params$covs)
+	}
+	else if (method == "random_params") {
+		m <- dim(X)[1]
+		rand.k <- floor(runif(k, 1, m))
+		mus <- X[rand.k,]
+		init.covar <- cov(X)
+		covars <- list()
+		for (i in 1:k)
+			covars[[i]] <- init.covar
+		phi <- rep.int(1/m, k)
+		list(weights=phi, means=mus, covs=covars)
 	}
 	else
 		stop("unknown init method")
-
-	# Estimate weights, means and covariances
-	params <- esti.gaussian.params(X, resp, reg.covar, cov.type)
-	list(weights=params$weights, means=params$means, covs=params$covs)
 }
 
 est.logprob <- function(X, means, covars, cov.type)
@@ -148,11 +162,11 @@ fm.estep <- function(X, params, cov.type)
 	weighted.logprob <- est.weighted.logprob(X, params$means,
 											 params$covs, cov.type,
 											 params$weights)
-	print(paste("weighted:", any(is.nan(weighted.logprob))))
 	logprob.norm <- logsumexp(weighted.logprob)
 	log.resp <- weighted.logprob - logprob.norm
-	fm.materialize(log.resp, logprob.norm)
-	list(norm=as.vector(mean(logprob.norm)), resp=log.resp)
+	norm <- mean(logprob.norm)
+	fm.materialize(log.resp, logprob.norm, norm)
+	list(norm=as.vector(norm), resp=log.resp)
 }
 
 # This estimate the parameters.
@@ -195,7 +209,7 @@ compute.lower.bound <- function(log.resp, log.norm)
 #             \item{covs}{a list of matrices, a matrix or a vector, depending on \code{cov.type}}}
 #        }
 GMM.fit <- function(X, k, max.iter=100, tol=1e-3, reg.covar=1e-6,
-					method=c("random", "kmeans"),
+					method=c("random", "random_params", "kmeans"),
 					cov.type=c("full", "tied", "diag", "spherical"))
 {
 	method <- match.arg(method)
@@ -205,7 +219,6 @@ GMM.fit <- function(X, k, max.iter=100, tol=1e-3, reg.covar=1e-6,
 		eret <- fm.estep(X, params, cov.type)
 		params <- fm.mstep(X, eret$resp, reg.covar, cov.type)
 		lb <- compute.lower.bound(eret$resp, eret$norm)
-		print(lb)
 		if (i > 5 && abs(lb - prev.lb) < tol)
 			break
 		prev.lb <- lb

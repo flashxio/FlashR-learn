@@ -78,7 +78,6 @@ logistic.regression <- function(X, y, method=c("GD", "Newton", "LS", "RNS",
 			W <<- w
 			C <<- c
 			G <<- g
-			print(paste("cost=", C, ", grad=", sqrt(sum(G*G)), sep=""))
 		}
 		cost <- function(w) {
 			if (is.null(W) || any(W != w))

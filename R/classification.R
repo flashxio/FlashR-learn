@@ -38,6 +38,9 @@ logistic.regression <- function(X, y, method=c("GD", "Newton", "LS", "RNS",
 											   "Uniform", "LBFGS", "L-BFGS-B", "BFGS"),
 								hessian_size=0.1, max.iters=500)
 {
+	m <- if(is.vector(X)) length(X) else nrow(X)
+	if(is.vector(X) || (!all(X[,1] == 1))) X <- cbind(fm.as.matrix(fm.rep.int(1, m)), X)
+
 	if (method == "Newton" || method == "LS"
 		|| method == "RNS" || method == "Uniform")
 		get.hessian <- logistic.hessian

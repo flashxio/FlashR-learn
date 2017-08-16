@@ -74,7 +74,7 @@ logistic.regression <- function(X, y, method=c("GD", "Newton", "LS", "RNS",
 		comp.cost_grad <- function(w) {
 			xw <- X %*% w
 			exw <- exp(xw)
-			c <- sum(y*(-xw) + ifelse(is.finite(exw), log(1 + exw), xw))
+			c <- sum(y*(-xw) + log(1 + exw))
 			g <- (t(X) %*% (1/(1 + 1/exw) - y))
 			c <- as.vector(c)/length(y)
 			g <- as.vector(g)/length(y)

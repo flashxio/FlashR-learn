@@ -36,9 +36,23 @@ logistic.cost <- function(X, y, w)
 
 logistic.regression <- function(X, y, method=c("GD", "Newton", "LS", "RNS",
 											   "Uniform", "LBFGS", "L-BFGS-B", "BFGS"),
-								hessian_size=0.1, max.iters=500)
+								hessian_size=0.1, max.iters=500, standardize=TRUE)
 {
 	m <- if(is.vector(X)) length(X) else nrow(X)
+
+	if (standardize) {
+		X <- as.double(X)
+		sum.x <- colSums(X)
+		sum.x2 <- colSums(X * X)
+		avg <- sum.x / m
+		sd <- sqrt((sum.x2 - m * avg * avg) / (m - 1))
+		center <- sum.x / m
+		X <- fm.mapply.row(X, center, fm.bo.sub)
+		# Multiply is much faster than division. X is a virtual matrix,
+		# and this operation will be called many times.
+		X <- fm.mapply.row(X, 1/sd, fm.bo.mul)
+	}
+
 	if(is.vector(X) || (!all(X[,1] == 1))) X <- cbind(fm.as.matrix(fm.rep.int(1, m)), X)
 
 	if (method == "Newton" || method == "LS"
